@@ -49,8 +49,35 @@ impl<'de, R: BincodeRead<'de>, E: ByteOrder, S: SizeLimit> Deserializer<R, S, E>
         self.read_bytes(size_of::<T>() as u64)
     }
 
+    fn read_byte(&mut self) -> Result<u8> {
+        //serde::Deserialize::deserialize(&mut *self)
+        try!(self.read_bytes(1));
+        self.reader.read_u8().map_err(Into::into)
+    }
+
+    fn read_length(&mut self) -> Result<Option<u64>> {
+        let mut byte: u8 = try!(self.read_byte());
+
+        if byte == 0x80 {
+            Ok(None)
+        } else if byte & 0x80 == 0x00 { // short form
+            Ok(Some((byte & 0x7F) as u64))
+        } else {
+            let n: usize = (byte & 0x7F) as usize; // n bytes
+            let mut result = 0u64;
+            for _ in 0..n {
+                byte = try!(self.read_byte());
+                result = result << 8 | (byte as u64);
+            }
+
+            Ok(Some(result))
+        }
+    }
+
     fn read_vec(&mut self) -> Result<Vec<u8>> {
-        let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        //let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = (try!(self.read_length())).unwrap() as usize; // TODO Fix
+
         self.read_bytes(len as u64)?;
         self.reader.get_byte_buffer(len)
     }
@@ -110,7 +137,6 @@ where
     impl_nums!(i64, deserialize_i64, visit_i64, read_i64);
     impl_nums!(f32, deserialize_f32, visit_f32, read_f32);
     impl_nums!(f64, deserialize_f64, visit_f64, read_f64);
-
 
     #[inline]
     fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value>
@@ -174,7 +200,8 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        //let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = (try!(self.read_length())).unwrap() as usize; // TODO Fix
         try!(self.read_bytes(len as u64));
         self.reader.forward_read_str(len, visitor)
     }
@@ -190,7 +217,8 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        //let len: usize = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = (try!(self.read_length())).unwrap() as usize; // TODO Fix
         try!(self.read_bytes(len as u64));
         self.reader.forward_read_bytes(len, visitor)
     }
@@ -290,7 +318,8 @@ where
     where
         V: serde::de::Visitor<'de>,
     {
-        let len = try!(serde::Deserialize::deserialize(&mut *self));
+        //let len = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = (try!(self.read_length())).unwrap() as usize; // TODO Fix
 
         self.deserialize_tuple(len, visitor)
     }
@@ -346,7 +375,8 @@ where
             }
         }
 
-        let len = try!(serde::Deserialize::deserialize(&mut *self));
+        //let len = try!(serde::Deserialize::deserialize(&mut *self));
+        let len: usize = (try!(self.read_length())).unwrap() as usize; // TODO Fix
 
         visitor.visit_map(Access {
             deserializer: self,

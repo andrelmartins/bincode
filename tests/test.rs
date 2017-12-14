@@ -218,7 +218,8 @@ fn deserializing_errors() {
         ErrorKind::InvalidBoolEncoding(0xA) => {}
         _ => panic!(),
     }
-    match *deserialize_little::<String>(&vec![1, 0, 0, 0, 0, 0, 0, 0, 0xFF][..]).unwrap_err() {
+    //match *deserialize_little::<String>(&vec![1, 0, 0, 0, 0, 0, 0, 0, 0xFF][..]).unwrap_err() {
+    match *deserialize_little::<String>(&vec![1, 0xFF][..]).unwrap_err() {
         ErrorKind::InvalidUtf8Encoding(_) => {}
         _ => panic!(),
     }
@@ -278,8 +279,10 @@ fn too_big_serialize() {
     assert!(serialize_little(&0u32, Bounded(3)).is_err());
     assert!(serialize_little(&0u32, Bounded(4)).is_ok());
 
-    assert!(serialize_little(&"abcde", Bounded(8 + 4)).is_err());
-    assert!(serialize_little(&"abcde", Bounded(8 + 5)).is_ok());
+    //assert!(serialize_little(&"abcde", Bounded(8 + 4)).is_err());
+    assert!(serialize_little(&"abcde", Bounded(1 + 4)).is_err());
+    //assert!(serialize_little(&"abcde", Bounded(8 + 5)).is_ok());
+    assert!(serialize_little(&"abcde", Bounded(1 + 5)).is_ok());
 }
 
 #[test]
@@ -290,10 +293,13 @@ fn test_proxy_encoded_size() {
     assert!(serialized_size(&0u64) == 8);
 
     // length isize stored as u64
-    assert!(serialized_size(&"") == 8);
-    assert!(serialized_size(&"a") == 8 + 1);
+    //assert!(serialized_size(&"") == 8);
+    assert!(serialized_size(&"") == 1);
+    //assert!(serialized_size(&"a") == 8 + 1);
+    assert!(serialized_size(&"a") == 1 + 1);
 
-    assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 8 + 3 * (4))
+    //assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 8 + 3 * (4))
+    assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 1 + 3 * (4))
 
 }
 
@@ -305,10 +311,13 @@ fn test_serialized_size() {
     assert!(serialized_size(&0u64) == 8);
 
     // length isize stored as u64
-    assert!(serialized_size(&"") == 8);
-    assert!(serialized_size(&"a") == 8 + 1);
+    //assert!(serialized_size(&"") == 8);
+    assert!(serialized_size(&"") == 1);
+    //assert!(serialized_size(&"a") == 8 + 1);
+    assert!(serialized_size(&"a") == 1 + 1);
 
-    assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 8 + 3 * (4))
+    //assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 8 + 3 * (4))
+    assert!(serialized_size(&vec![0u32, 1u32, 2u32]) == 1 + 3 * (4))
 }
 
 #[test]

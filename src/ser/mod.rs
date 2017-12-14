@@ -29,6 +29,38 @@ impl<W: Write, E: ByteOrder> Serializer<W, E> {
             _phantom: PhantomData,
         }
     }
+
+    /// private function to encode length
+    fn encode_length(&mut self, length: Option<u64>) -> Result<()> {
+        if let Some(len) = length {
+            if len <= 127 {
+                self.writer.write_u8(len as u8).map_err(Into::into)
+            } else {
+                // compute and encode number of bytes
+                let mut mask: u64 = 0xff00000000000000;
+                let mut enc_len: u8 = 8;
+                while enc_len > 0 && (len & mask) == 0 {
+                    mask = mask >> 8;
+                    enc_len = enc_len - 1;
+                }
+                self.writer.write_u8(enc_len | 0x80)?;
+
+                // write actual bytes
+                while enc_len > 0 {
+                    let byte = ((len & mask) >> ((enc_len - 1) * 8)) as u8;
+                    self.writer.write_u8(byte)?;
+
+                    //
+                    mask = mask >> 8;
+                    enc_len = enc_len - 1;
+                }
+
+                Ok(())
+            }
+        } else {
+            self.writer.write_u8(0x80).map_err(Into::into)
+        }
+    }
 }
 
 impl<'a, W: Write, E: ByteOrder> serde::Serializer for &'a mut Serializer<W, E> {
@@ -97,7 +129,8 @@ impl<'a, W: Write, E: ByteOrder> serde::Serializer for &'a mut Serializer<W, E> 
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
-        try!(self.serialize_u64(v.len() as u64));
+        //try!(self.serialize_u64(v.len() as u64));
+        try!(self.encode_length(Some(v.len() as u64)));
         self.writer.write_all(v.as_bytes()).map_err(Into::into)
     }
 
@@ -108,7 +141,8 @@ impl<'a, W: Write, E: ByteOrder> serde::Serializer for &'a mut Serializer<W, E> 
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        try!(self.serialize_u64(v.len() as u64));
+        //try!(self.serialize_u64(v.len() as u64));
+        try!(self.encode_length(Some(v.len() as u64)));
         self.writer.write_all(v).map_err(Into::into)
     }
 
@@ -126,7 +160,8 @@ impl<'a, W: Write, E: ByteOrder> serde::Serializer for &'a mut Serializer<W, E> 
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         let len = try!(len.ok_or(ErrorKind::SequenceMustHaveLength));
-        try!(self.serialize_u64(len as u64));
+        //try!(self.serialize_u64(len as u64));
+        try!(self.encode_length(Some(len as u64)));
         Ok(Compound { ser: self })
     }
 
@@ -155,7 +190,8 @@ impl<'a, W: Write, E: ByteOrder> serde::Serializer for &'a mut Serializer<W, E> 
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let len = try!(len.ok_or(ErrorKind::SequenceMustHaveLength));
-        try!(self.serialize_u64(len as u64));
+        //try!(self.serialize_u64(len as u64));
+        try!(self.encode_length(Some(len as u64)));
         Ok(Compound { ser: self })
     }
 
@@ -226,6 +262,22 @@ impl<S: SizeLimit> SizeChecker<S> {
         use std::mem::size_of_val;
         self.add_raw(size_of_val(&t) as u64)
     }
+
+    fn add_length(&mut self, length: u64) -> Result<()> {
+
+        if length <= 127 {
+            self.add_raw(1u64)
+        } else {
+            // compute and encode number of bytes
+            let mut mask: u64 = 0xff00000000000000;
+            let mut enc_len: u8 = 8;
+            while enc_len > 0 && (length & mask) == 0 {
+                mask = mask >> 8;
+                enc_len = enc_len - 1;
+            }
+            self.add_raw((enc_len + 1) as u64)
+        }
+    } 
 }
 
 impl<'a, S: SizeLimit> serde::Serializer for &'a mut SizeChecker<S> {
@@ -292,7 +344,8 @@ impl<'a, S: SizeLimit> serde::Serializer for &'a mut SizeChecker<S> {
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
-        try!(self.add_value(0 as u64));
+        //try!(self.add_value(0 as u64));
+        try!(self.add_length(v.len() as u64));
         self.add_raw(v.len() as u64)
     }
 
@@ -301,7 +354,8 @@ impl<'a, S: SizeLimit> serde::Serializer for &'a mut SizeChecker<S> {
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<()> {
-        try!(self.add_value(0 as u64));
+        //try!(self.add_value(0 as u64));
+        try!(self.add_length(v.len() as u64));
         self.add_raw(v.len() as u64)
     }
 
@@ -320,7 +374,8 @@ impl<'a, S: SizeLimit> serde::Serializer for &'a mut SizeChecker<S> {
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
         let len = try!(len.ok_or(ErrorKind::SequenceMustHaveLength));
 
-        try!(self.serialize_u64(len as u64));
+        //try!(self.serialize_u64(len as u64));
+        try!(self.add_length(len as u64));
         Ok(SizeCompound { ser: self })
     }
 
@@ -350,7 +405,8 @@ impl<'a, S: SizeLimit> serde::Serializer for &'a mut SizeChecker<S> {
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
         let len = try!(len.ok_or(ErrorKind::SequenceMustHaveLength));
 
-        try!(self.serialize_u64(len as u64));
+        //try!(self.serialize_u64(len as u64));
+        try!(self.add_length(len as u64));
         Ok(SizeCompound { ser: self })
     }
 

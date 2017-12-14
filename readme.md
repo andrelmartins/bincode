@@ -6,6 +6,8 @@
 [![](https://meritbadge.herokuapp.com/bincode)](https://crates.io/crates/bincode)
 [![](https://img.shields.io/badge/license-MIT-blue.svg)](http://opensource.org/licenses/MIT)
 
+**Incompatible fork that uses less bytes to encode lengths.**
+
 A compact encoder / decoder pair that uses a binary zero-fluff encoding scheme.
 The size of the encoded object will be the same or smaller than the size that
 the object takes up in memory in a running Rust program.
